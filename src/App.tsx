@@ -5,11 +5,11 @@ import Categories from './components/Categories';
 import VideoGrid from './components/VideoGrid';
 import Sidebar from './components/Sidebar';
 import ApiKeySetup from './components/ApiKeySetup';
+import ProfileSetup from './components/ProfileSetup';
 import { ApiKeyProvider, useApiKeys } from './context/ApiKeyContext';
 import { VideoProvider } from './context/VideoContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { ProfileProvider } from './context/ProfileContext';
-import { useProfile } from './context/ProfileContext';
+import { ProfileProvider, useProfile } from './context/ProfileContext';
 import { searchVideos, searchChannelVideos } from './services/youtube';
 import { Video, Category } from './types';
 
@@ -33,7 +33,6 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 
 function distributeChannelVideos(videos: Video[]): Video[] {
-  // Group videos by channel
   const videosByChannel = videos.reduce((acc, video) => {
     if (!acc[video.channelId]) {
       acc[video.channelId] = [];
@@ -41,17 +40,11 @@ function distributeChannelVideos(videos: Video[]): Video[] {
     acc[video.channelId].push(video);
     return acc;
   }, {} as Record<string, Video[]>);
-
-  // Create arrays of videos from each channel
+  
   const channelArrays = Object.values(videosByChannel);
-  
-  // Initialize result array
   const distributed: Video[] = [];
-  
-  // Keep track of current index for each channel
   const indices = new Array(channelArrays.length).fill(0);
   
-  // Distribute videos
   while (distributed.length < videos.length) {
     for (let i = 0; i < channelArrays.length; i++) {
       if (indices[i] < channelArrays[i].length) {
@@ -65,13 +58,13 @@ function distributeChannelVideos(videos: Video[]): Video[] {
 }
 
 function AppContent() {
+  const { apiKeys, hasRequiredKeys, getNextValidKey } = useApiKeys();
+  const { profile, isProfileComplete } = useProfile();
   const [selectedCategory, setSelectedCategory] = useState('Explore');
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { apiKeys, getNextValidKey, isValidating } = useApiKeys();
-  const { profile } = useProfile();
   const [searchQuery, setSearchQuery] = useState('');
 
   const fetchFavoriteChannelVideos = async () => {
@@ -87,7 +80,6 @@ function AppContent() {
         return;
       }
 
-      // Fetch videos from all favorite channels
       const channelVideosPromises = profile.favoriteChannels.map(channel =>
         searchChannelVideos(validKey, channel.id)
       );
@@ -95,7 +87,6 @@ function AppContent() {
       const channelVideosArrays = await Promise.all(channelVideosPromises);
       const allChannelVideos = channelVideosArrays.flat();
       
-      // Shuffle and distribute videos
       const distributedVideos = distributeChannelVideos(shuffleArray(allChannelVideos));
       setVideos(distributedVideos);
     } catch (err) {
@@ -138,7 +129,6 @@ function AppContent() {
         category: selectedCategory
       }));
       
-      // Shuffle and distribute videos
       const distributedVideos = distributeChannelVideos(shuffleArray(videosWithCategory));
       setVideos(distributedVideos);
     } catch (err) {
@@ -172,6 +162,14 @@ function AppContent() {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
+  if (!hasRequiredKeys) {
+    return <ApiKeySetup />;
+  }
+
+  if (!isProfileComplete) {
+    return <ProfileSetup />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header 
@@ -187,7 +185,7 @@ function AppContent() {
       />
       
       <main className={`pt-32 px-4 pb-8 transition-all duration-300 ${isSidebarOpen ? 'ml-64' : ''}`}>
-        {loading || isValidating ? (
+        {loading ? (
           <div className="flex justify-center items-center min-h-[50vh]">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white"></div>
           </div>
@@ -200,7 +198,6 @@ function AppContent() {
           />
         )}
       </main>
-      <ApiKeySetup />
     </div>
   );
 }

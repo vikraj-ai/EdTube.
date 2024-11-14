@@ -35,6 +35,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, channel, onCl
   const [volume, setVolume] = useState(100);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+ 
   const [isControlsVisible, setIsControlsVisible] = useState(true);
   const [isHovering, setIsHovering] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -46,6 +47,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, channel, onCl
   const [settingsTab, setSettingsTab] = useState<'main' | 'speed' | 'quality'>('main');
   const startTimeRef = useRef(Date.now());
   const playerRef = useRef<any>(null);
+  
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
   const youtubePlayerRef = useRef<any>(null);
@@ -97,6 +99,36 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, channel, onCl
   const onPlayerStateChange = (event: any) => {
     setIsPlaying(event.data === window.YT.PlayerState.PLAYING);
   };
+
+
+
+
+  const handleInteraction = useCallback(() => {
+    // Show controls on any interaction
+    setIsControlsVisible(true);
+
+    // Clear the previous timeout to avoid hiding the controls prematurely
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+
+    // Set a new timeout to hide controls after 10 seconds
+    controlsTimeoutRef.current = setTimeout(() => {
+      setIsControlsVisible(false);
+    }, 5000); // 10 seconds
+  }, []);
+
+  useEffect(() => {
+    // Initial setup for hiding controls after 10 seconds
+    handleInteraction();
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+    };
+  }, [handleInteraction]);
 
   const startTimeUpdate = () => {
     const updateTime = () => {
@@ -279,7 +311,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, channel, onCl
     onClose();
   };
 
-  return (
+  return (<div className="video-container" onClick={handleInteraction}>
+      
     <div className={`fixed inset-0 z-50 ${isFullscreen ? '' : 'bg-black bg-opacity-75 p-4'}`}>
       <div 
         ref={videoContainerRef}
@@ -461,6 +494,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, channel, onCl
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 };
