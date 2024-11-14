@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Search, Trash2 } from 'lucide-react';
+import { X, Plus, Search, Trash2, AlertCircle } from 'lucide-react';
 import { useProfile } from '../context/ProfileContext';
 import { UserProfile } from '../types';
 import axios from 'axios';
@@ -9,7 +9,6 @@ import { useApiKeys } from '../context/ApiKeyContext';
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  isInitialSetup?: boolean;
 }
 
 const GRADES = ['6th', '7th', '8th', '9th', '10th', '11th', '12th'];
@@ -24,7 +23,7 @@ const SUBJECTS = [
   'Geography',
 ];
 
-const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialSetup = false }) => {
+const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
   const { profile, updateProfile } = useProfile();
   const { getNextValidKey } = useApiKeys();
   const [formData, setFormData] = useState<UserProfile>(profile || {
@@ -37,7 +36,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialS
   const [channelSearch, setChannelSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Array<{ id: string; name: string }>>([]);
   const [interest, setInterest] = useState('');
-  const [formError, setFormError] = useState('');
+  const [errors, setErrors] = useState({
+    channels: false,
+    subjects: false
+  });
 
   useEffect(() => {
     if (profile) {
@@ -47,11 +49,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialS
 
   const searchChannels = async () => {
     if (!channelSearch.trim()) return;
-
     try {
       const apiKey = await getNextValidKey();
       if (!apiKey) return;
-
       const response = await axios.get(`${YOUTUBE_API_BASE_URL}/search`, {
         params: {
           part: 'snippet',
@@ -61,12 +61,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialS
           key: apiKey,
         },
       });
-
       const channels = response.data.items.map((item: any) => ({
         id: item.snippet.channelId,
         name: item.snippet.channelTitle,
       }));
-
       setSearchResults(channels);
     } catch (error) {
       console.error('Failed to search channels:', error);
@@ -79,6 +77,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialS
         ...prev,
         favoriteChannels: [...prev.favoriteChannels, channel],
       }));
+      setErrors(prev => ({ ...prev, channels: false }));
     }
     setChannelSearch('');
     setSearchResults([]);
@@ -108,30 +107,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialS
     }));
   };
 
-  const validateForm = () => {
-    if (!formData.name.trim()) {
-      setFormError('Please enter your name');
-      return false;
-    }
-    if (!formData.grade) {
-      setFormError('Please select your grade');
-      return false;
-    }
-    if (formData.subjects.length === 0) {
-      setFormError('Please select at least one subject');
-      return false;
-    }
-    if (isInitialSetup && formData.favoriteChannels.length === 0) {
-      setFormError('Please add at least one educational channel');
-      return false;
-    }
-    return true;
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
-    
+    const newErrors = {
+      channels: formData.favoriteChannels.length === 0,
+      subjects: formData.subjects.length === 0
+    };
+    setErrors(newErrors);
+    if (newErrors.channels || newErrors.subjects) return;
     updateProfile(formData);
     onClose();
   };
@@ -139,53 +122,42 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialS
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center overflow-y-auto">
-      <div className="bg-white rounded-lg max-w-2xl w-full mx-4 my-8">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl font-bold">
-            {isInitialSetup ? 'Complete Your Profile' : 'Edit Profile'}
+    <div className="fixed inset-0 bg-modal-overlay backdrop-blur-sm z-50 flex items-center justify-center overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-2xl w-full mx-4 my-8 shadow-modal animate-fade-in">
+        <div className="flex items-center justify-between p-6 border-b border-red-100 modal-gradient rounded-t-2xl">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-red-600 bg-clip-text text-transparent">
+            Edit Profile
           </h2>
-          {!isInitialSetup && (
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
-              <X className="w-6 h-6" />
-            </button>
-          )}
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-red-100 rounded-full transition-colors duration-200"
+          >
+            <X className="w-6 h-6 text-red-500" />
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {formError && (
-            <div className="p-3 bg-red-100 text-red-700 rounded-lg">
-              {formError}
-            </div>
-          )}
-
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 custom-scrollbar">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Name
             </label>
             <input
               type="text"
               value={formData.name}
-              onChange={e => {
-                setFormError('');
-                setFormData(prev => ({ ...prev, name: e.target.value }));
-              }}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              className="w-full px-4 py-2.5 border border-red-100 rounded-xl input-focus bg-white/50"
               placeholder="Enter your name"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Grade
             </label>
             <select
               value={formData.grade}
-              onChange={e => {
-                setFormError('');
-                setFormData(prev => ({ ...prev, grade: e.target.value }));
-              }}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={e => setFormData(prev => ({ ...prev, grade: e.target.value }))}
+              className="w-full px-4 py-2.5 border border-red-100 rounded-xl input-focus bg-white/50"
             >
               <option value="">Select grade</option>
               {GRADES.map(grade => (
@@ -195,7 +167,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialS
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Subjects
             </label>
             <div className="flex flex-wrap gap-2 mb-2">
@@ -204,28 +176,34 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialS
                   key={subject}
                   type="button"
                   onClick={() => {
-                    setFormError('');
                     setFormData(prev => ({
                       ...prev,
                       subjects: prev.subjects.includes(subject)
                         ? prev.subjects.filter(s => s !== subject)
                         : [...prev.subjects, subject],
                     }));
+                    setErrors(prev => ({ ...prev, subjects: false }));
                   }}
-                  className={`px-3 py-1 rounded-full text-sm ${
+                  className={`px-4 py-2 rounded-xl text-sm transition-all duration-200 ${
                     formData.subjects.includes(subject)
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-sm'
+                      : 'bg-red-50 text-red-600 hover:bg-red-100'
                   }`}
                 >
                   {subject}
                 </button>
               ))}
             </div>
+            {errors.subjects && (
+              <div className="flex items-center gap-2 text-red-600 text-sm mt-2 bg-red-50 p-3 rounded-xl">
+                <AlertCircle className="w-4 h-4" />
+                <span>Please select at least one subject to proceed</span>
+              </div>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Favorite Educational Channels
             </label>
             <div className="flex gap-2 mb-2">
@@ -234,28 +212,25 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialS
                 value={channelSearch}
                 onChange={e => setChannelSearch(e.target.value)}
                 placeholder="Search for channels"
-                className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-4 py-2.5 border border-red-100 rounded-xl input-focus bg-white/50"
               />
               <button
                 type="button"
                 onClick={searchChannels}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-sm"
               >
                 <Search className="w-5 h-5" />
               </button>
             </div>
 
             {searchResults.length > 0 && (
-              <div className="mb-4 border rounded-lg divide-y">
+              <div className="mb-4 border border-red-100 rounded-xl divide-y divide-red-100 overflow-hidden">
                 {searchResults.map(channel => (
                   <button
                     key={channel.id}
                     type="button"
-                    onClick={() => {
-                      setFormError('');
-                      addChannel(channel);
-                    }}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-50"
+                    onClick={() => addChannel(channel)}
+                    className="w-full px-4 py-3 text-left hover:bg-red-50 transition-colors duration-200"
                   >
                     {channel.name}
                   </button>
@@ -267,23 +242,29 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialS
               {formData.favoriteChannels.map(channel => (
                 <div
                   key={channel.id}
-                  className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+                  className="flex items-center justify-between p-3 bg-red-50 rounded-xl"
                 >
-                  <span>{channel.name}</span>
+                  <span className="text-gray-700">{channel.name}</span>
                   <button
                     type="button"
                     onClick={() => removeChannel(channel.id)}
-                    className="p-1 text-red-600 hover:bg-red-50 rounded-full"
+                    className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition-colors duration-200"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               ))}
             </div>
+            {errors.channels && (
+              <div className="flex items-center gap-2 text-red-600 text-sm mt-2 bg-red-50 p-3 rounded-xl">
+                <AlertCircle className="w-4 h-4" />
+                <span>Please add at least one educational channel to proceed</span>
+              </div>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Learning Interests
             </label>
             <div className="flex gap-2 mb-2">
@@ -292,12 +273,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialS
                 value={interest}
                 onChange={e => setInterest(e.target.value)}
                 placeholder="Add an interest (e.g., Web Development)"
-                className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-4 py-2.5 border border-red-100 rounded-xl input-focus bg-white/50"
               />
               <button
                 type="button"
                 onClick={addInterest}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-sm"
               >
                 <Plus className="w-5 h-5" />
               </button>
@@ -307,15 +288,15 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialS
               {formData.interests.map((item, index) => (
                 <div
                   key={index}
-                  className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full"
+                  className="flex items-center gap-2 px-4 py-2 bg-red-50 rounded-xl group"
                 >
-                  <span>{item}</span>
+                  <span className="text-gray-700">{item}</span>
                   <button
                     type="button"
                     onClick={() => removeInterest(index)}
-                    className="p-0.5 hover:bg-gray-200 rounded-full"
+                    className="p-1 hover:bg-red-100 rounded-lg transition-colors duration-200"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-4 h-4 text-red-500" />
                   </button>
                 </div>
               ))}
@@ -325,9 +306,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, isInitialS
           <div className="flex justify-end pt-4">
             <button
               type="submit"
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="px-8 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-sm font-medium"
             >
-              {isInitialSetup ? 'Complete Setup' : 'Save Profile'}
+              Save Profile
             </button>
           </div>
         </form>

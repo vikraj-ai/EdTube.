@@ -3,12 +3,11 @@ import { UserProfile } from '../types';
 import { useProfile } from '../context/ProfileContext';
 import { BookOpen, GraduationCap, Sparkles } from 'lucide-react';
 
-import { X, Plus, Search, Trash2 } from 'lucide-react';
+import { X, Plus, Search, Trash2 ,AlertCircle} from 'lucide-react';
 
 import axios from 'axios';
 import { YOUTUBE_API_BASE_URL } from '../config/youtube';
 import { useApiKeys } from '../context/ApiKeyContext';
-
 const GRADES = ['6th', '7th', '8th', '9th', '10th', '11th', '12th'];
 const SUBJECTS = [
   'Mathematics',
@@ -35,12 +34,29 @@ const ProfileSetup: React.FC = () => {
   const [interest, setInterest] = useState('');
   const [channelSearch, setChannelSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Array<{ id: string; name: string }>>([]);
+  const [errors, setErrors] = useState({
+    channels: false,
+    subjects: false
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate channels
+    if (formData.favoriteChannels.length === 0) {
+      setErrors(prev => ({ ...prev, channels: true }));
+      return;
+    }
+
+    // Validate subjects
+    if (formData.subjects.length === 0) {
+      setErrors(prev => ({ ...prev, subjects: true }));
+      return;
+    }
+
     updateProfile(formData);
   };
  
-
   const searchChannels = async () => {
     if (!channelSearch.trim()) return;
 
@@ -75,6 +91,8 @@ const ProfileSetup: React.FC = () => {
         ...prev,
         favoriteChannels: [...prev.favoriteChannels, channel],
       }));
+      // Clear channel error when adding a channel
+      setErrors(prev => ({ ...prev, channels: false }));
     }
     setChannelSearch('');
     setSearchResults([]);
@@ -85,6 +103,10 @@ const ProfileSetup: React.FC = () => {
       ...prev,
       favoriteChannels: prev.favoriteChannels.filter(c => c.id !== channelId),
     }));
+    // Set channel error if removing the last channel
+    if (formData.favoriteChannels.length <= 1) {
+      setErrors(prev => ({ ...prev, channels: true }));
+    }
   };
 
   const addInterest = () => {
@@ -147,10 +169,10 @@ const ProfileSetup: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Subjects You're Interested In
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Subjects
             </label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 mb-2">
               {SUBJECTS.map(subject => (
                 <button
                   key={subject}
@@ -162,20 +184,28 @@ const ProfileSetup: React.FC = () => {
                         ? prev.subjects.filter(s => s !== subject)
                         : [...prev.subjects, subject],
                     }));
+                    setErrors(prev => ({ ...prev, subjects: false }));
                   }}
-                  className={`px-4 py-2 rounded-full text-sm transition-colors ${
+                  className={`px-3 py-1 rounded-full text-sm ${
                     formData.subjects.includes(subject)
-                      ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   {subject}
                 </button>
               ))}
             </div>
+            {errors.subjects && (
+              <div className="flex items-center gap-2 text-red-600 text-sm mt-2">
+                <AlertCircle className="w-4 h-4" />
+                <span>Please select at least one subject to proceed</span>
+              </div>
+            )}
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Favorite Educational Channels
             </label>
             <div className="flex gap-2 mb-2">
@@ -184,7 +214,7 @@ const ProfileSetup: React.FC = () => {
                 value={channelSearch}
                 onChange={e => setChannelSearch(e.target.value)}
                 placeholder="Search for channels"
-                className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"required
+                className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
               />
               <button
                 type="button"
@@ -201,10 +231,7 @@ const ProfileSetup: React.FC = () => {
                   <button
                     key={channel.id}
                     type="button"
-                    onClick={() => {
-                      setFormError('');
-                      addChannel(channel);
-                    }}
+                    onClick={() => addChannel(channel)}
                     className="w-full px-4 py-2 text-left hover:bg-gray-50"
                   >
                     {channel.name}
@@ -230,7 +257,15 @@ const ProfileSetup: React.FC = () => {
                 </div>
               ))}
             </div>
+
+            {errors.channels && (
+              <div className="flex items-center gap-2 text-red-600 text-sm mt-2">
+                <AlertCircle className="w-4 h-4" />
+                <span>Please add at least one educational channel</span>
+              </div>
+            )}
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Additional Interests
@@ -267,10 +302,10 @@ const ProfileSetup: React.FC = () => {
 
           <button
             type="submit"
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-900 
+            className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 
                      transition-colors font-medium flex items-center justify-center gap-2"
           >
-            <Sparkles className="w-100 h-5" />
+            <Sparkles className="w-5 h-5" />
             Start Learning
           </button>
         </form>
